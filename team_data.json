@@ -1,0 +1,122 @@
+{
+    "Arizona Diamondbacks": {
+        "color": "#A71930",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Arizona_Diamondbacks_logo.svg/2384px-Arizona_Diamondbacks_logo.svg.png"
+    },
+    "Atlanta Braves": {
+        "color": "#13274F",
+        "logo": "https://i.pinimg.com/originals/f8/c5/b2/f8c5b2feb970709f107710052f654aab.png"
+    },
+    "Baltimore Orioles": {
+        "color": "#DF4601",
+        "logo": "https://1000logos.net/wp-content/uploads/2017/12/Logo-Baltimore-Orioles.png"
+    },
+    "Boston Red Sox": {
+        "color": "#BD3039",
+        "logo": "https://upload.wikimedia.org/wikipedia/en/thumb/6/6d/RedSoxPrimary_HangingSocks.svg/1200px-RedSoxPrimary_HangingSocks.svg.png"
+    },
+    "Chicago Cubs": {
+        "color": "#0E3386",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Chicago_Cubs_logo.svg/2032px-Chicago_Cubs_logo.svg.png"
+    },
+    "Chicago White Sox": {
+        "color": "#27251F",
+        "logo": "https://cdn.freebiesupply.com/images/large/2x/chicago-white-sox-logo-black-and-white.png"
+    },
+    "Cincinnati Reds": {
+        "color": "#C6011F",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Cincinnati_Reds_Logo.svg/2560px-Cincinnati_Reds_Logo.svg.png"
+    },
+    "Cleveland Guardians": {
+        "color": "#E31937",
+        "logo": "https://1000logos.net/wp-content/uploads/2017/12/Cleveland-Guardians-Logo.png"
+    },
+    "Colorado Rockies": {
+        "color": "#33006F",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/31/Colorado_Rockies_logo.svg/1200px-Colorado_Rockies_logo.svg.png"
+    },
+    "Detroit Tigers": {
+        "color": "#0C2340",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/Detroit_Tigers_logo.svg/1200px-Detroit_Tigers_logo.svg.png"
+    },
+    "Houston Astros": {
+        "color": "#EB6E1F",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/0/01/Houston_astros_logo.png"
+    },
+    "Kansas City Royals": {
+        "color": "#004687",
+        "logo": "https://cdn.freebiesupply.com/images/large/2x/kansas-city-royals-logo-transparent.png"
+    },
+    "Los Angeles Angels": {
+        "color": "#BA0021",
+        "logo": "https://cdn.freebiesupply.com/images/large/2x/los-angeles-angels-logo-transparent.png"
+    },
+    "Los Angeles Dodgers": {
+        "color": "#005A9C",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Los_Angeles_Dodgers_Logo.svg/1200px-Los_Angeles_Dodgers_Logo.svg.png"
+    },
+    "Miami Marlins": {
+        "color": "#00A3E0",
+        "logo": "https://upload.wikimedia.org/wikipedia/en/thumb/f/fd/Marlins_team_logo.svg/1200px-Marlins_team_logo.svg.png"
+    },
+    "Milwaukee Brewers": {
+        "color": "#FFC52F",
+        "logo": "https://1000logos.net/wp-content/uploads/2018/03/Milwaukee-Brewers-Logo.png"
+    },
+    "Minnesota Twins": {
+        "color": "#002B5C",
+        "logo": "https://cdn.freebiesupply.com/images/large/2x/minnesota-twins-logo-transparent.png"
+    },
+    "New York Mets": {
+        "color": "#FF5910",
+        "logo": "https://cdn.freebiesupply.com/images/thumbs/2x/new-york-mets-logo.png"
+    },
+    "New York Yankees": {
+        "color": "#0C2340",
+        "logo": "https://1000logos.net/wp-content/uploads/2017/05/New-York-Yankees-Logo-1909.png"
+    },
+    "Oakland Athletics": {
+        "color": "#003831",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Oakland_A%27s_logo.svg/2048px-Oakland_A%27s_logo.svg.png"
+    },
+    "Philadelphia Phillies": {
+        "color": "#E81828",
+        "logo": "https://1000logos.net/wp-content/uploads/2017/05/Philadelphia-Phillies-Logo.png"
+    },
+    "Pittsburgh Pirates": {
+        "color": "#FDB827",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/Pittsburgh_Pirates_logo_2014.svg/1464px-Pittsburgh_Pirates_logo_2014.svg.png"
+    },
+    "San Diego Padres": {
+        "color": "#2F241D",
+        "logo": "https://1000logos.net/wp-content/uploads/2018/06/San-Diego-Padres-logo.png"
+    },
+    "San Francisco Giants": {
+        "color": "#FD5A1E",
+        "logo": "https://i.pinimg.com/originals/51/ea/58/51ea5851ccbb68b7378d952d6459b93d.png"
+    },
+    "Seattle Mariners": {
+        "color": "#0C2C56",
+        "logo": "https://i.pinimg.com/originals/b5/5a/4b/b55a4b417c32a8f700d177105c6f9e26.png"
+    },
+    "St. Louis Cardinals": {
+        "color": "#C41E3A",
+        "logo": "https://upload.wikimedia.org/wikipedia/en/thumb/9/9d/St._Louis_Cardinals_logo.svg/1200px-St._Louis_Cardinals_logo.svg.png"
+    },
+    "Tampa Bay Rays": {
+        "color": "#092C5C",
+        "logo": "https://1000logos.net/wp-content/uploads/2018/05/Tampa_Bay_Rays-Logo.png"
+    },
+    "Texas Rangers": {
+        "color": "#003278",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Texas_Rangers_logo.png"
+    },
+    "Toronto Blue Jays": {
+        "color": "#134A8E",
+        "logo": "https://cdn.freebiesupply.com/images/large/2x/toronto-blue-jays-logo-transparent.png"
+    },
+    "Washington Nationals": {
+        "color": "#AB0003",
+        "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Washington_Nationals_logo.svg/1200px-Washington_Nationals_logo.svg.png"
+    }
+}
