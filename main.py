@@ -5,6 +5,7 @@ import discord
 from discord import Color
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone, date
+import pytz
 import difflib
 from supabase import create_client, Client
 import statsapi
@@ -37,18 +38,18 @@ async def on_ready():
     activity = discord.Game(name="MLB Help")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     daily_odds.start()  # Start the daily odds task
-    daily_scores.start()  # Start the daily scores task
+    daily_scores_task.start()  # Start the daily scores task
     daily_games_task.start()  # Start the daily games task
     daily_check_winners_task.start()  # Start the daily winner check task
 
-# Converts UTC time to EST time
+# Function to convert time to EST with DST handling
 
 
-def convert_to_est(utc_time):
-    utc_dt = datetime.strptime(
-        utc_time, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-    est_dt = utc_dt.astimezone(timezone(timedelta(hours=-4)))
-    return est_dt
+def convert_to_est(time_str):
+    utc_time = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+    est = pytz.timezone('US/Eastern')
+    est_time = utc_time.astimezone(est)
+    return est_time
 
 # get team data from supabase
 
@@ -98,8 +99,8 @@ async def daily_odds():
     now = datetime.now(timezone.utc)
     est_now = now.astimezone(timezone(timedelta(hours=-4)))
     print(f"Current EST time: {est_now.strftime('%Y-%m-%d %I:%M %p EST')}")
-    if est_now.hour == 9 and est_now.minute == 0:
-        print("It's 09:00 AM EST, fetching odds...")
+    if est_now.hour == 6 and est_now.minute == 0:
+        print("It's 06:00 AM EST, fetching odds...")
         channel = bot.get_channel(int(os.getenv('ODDS_CHANNEL_ID')))
         if channel:
             await send_odds(channel)
@@ -186,7 +187,7 @@ async def before_daily_odds():
     await bot.wait_until_ready()
     now = datetime.now(timezone.utc)
     est_now = now.astimezone(timezone(timedelta(hours=-4)))
-    target_time = est_now.replace(hour=9, minute=0, second=0, microsecond=0)
+    target_time = est_now.replace(hour=6, minute=0, second=0, microsecond=0)
     if est_now >= target_time:
         target_time += timedelta(days=1)
     await discord.utils.sleep_until(target_time)
@@ -195,7 +196,6 @@ async def before_daily_odds():
 # Gets the baseball scores from the API
 def get_baseball_scores(api_key):
     base_url = "https://api.the-odds-api.com/v4/sports/baseball_mlb/scores/"
-
     params = {
         'dateFormat': 'iso',
         'daysFrom': '1',
@@ -211,13 +211,13 @@ def get_baseball_scores(api_key):
 
 
 @tasks.loop(hours=24)
-async def daily_scores():
-    print("daily_scores task started")
+async def daily_scores_task():
+    print("daily_scores_task started")
     await bot.wait_until_ready()
-    now = datetime.now(timezone.utc)
-    est_now = now.astimezone(timezone(timedelta(hours=-5)))  # Adjusted for EST
+    now = datetime.now(pytz.utc)
+    est_now = now.astimezone(pytz.timezone('US/Eastern'))  # Adjusted for EST
     print(f"Current EST time: {est_now.strftime('%Y-%m-%d %I:%M %p EST')}")
-    if est_now.hour == 6 and est_now.minute == 0:
+    if est_now.hour == 6 and est_now.minute == 00:
         print("It's 06:00 AM EST, fetching scores...")
         channel = bot.get_channel(int(os.getenv('SCORES_CHANNEL_ID')))
         if channel:
@@ -236,18 +236,17 @@ async def fetch_results(ctx):
     else:
         await ctx.send("Channel not found.")
 
-
 # Function to fetch and send scores
 
 
 async def send_results(channel):
+    print("Fetching scores...")
     api_key = os.getenv('ODDS_API_KEY')
     if not api_key:
         await channel.send("API key not found. Please set ODDS_API_KEY in the .env file.")
         return
 
     scores_data = get_baseball_scores(api_key)
-
     if not scores_data:
         await channel.send("No scores data found.")
         return
@@ -262,9 +261,10 @@ async def send_results(channel):
     }
 
     results = {}
-
     for key, value in completed_games.items():
         scores = value['scores']
+        if len(scores) < 2:
+            continue  # Ensure both team scores are available
         team1_name, team2_name = scores[0]['name'], scores[1]['name']
         team1_score, team2_score = scores[0]['score'], scores[1]['score']
 
@@ -323,23 +323,24 @@ async def send_results(channel):
 
         await channel.send(embed=embed)
 
-
 # Set the initial start time for the daily scores task
 
 
-@daily_scores.before_loop
-async def before_daily_scores():
+@daily_scores_task.before_loop
+async def before_daily_scores_task():
+    print("Setting initial start time for daily_scores task")
     await bot.wait_until_ready()
-    now = datetime.now(timezone.utc)
-    est_now = now.astimezone(timezone(timedelta(hours=-5)))  # Adjusted for EST
-    target_time = est_now.replace(hour=6, minute=0, second=0, microsecond=0)
+    now = datetime.now(pytz.utc)
+    est_now = now.astimezone(pytz.timezone('US/Eastern'))  # Adjusted for EST
+    target_time = est_now.replace(hour=6, minute=00, second=0, microsecond=0)
     if est_now >= target_time:
         target_time += timedelta(days=1)
+    print(f"Sleeping until {target_time.astimezone(
+        pytz.timezone('US/Eastern')).strftime('%Y-%m-%d %I:%M %p EST')}")
     await discord.utils.sleep_until(target_time)
 
 
-@bot.command(name='daily_games')
-async def daily_games(ctx):
+async def daily_games():
     api_key = os.getenv('ODDS_API_KEY')
     if not api_key:
         print("API key not found. Please set ODDS_API_KEY in the .env file.")
@@ -394,6 +395,13 @@ async def daily_games(ctx):
         await channel.send(embed=embed)
     else:
         print("Channel not found")
+
+# Create a separate command function to call `daily_games` manually
+
+
+@bot.command(name='daily_games')
+async def daily_games_command(ctx):
+    await daily_games()
 
 
 @tasks.loop(hours=24)
@@ -483,6 +491,13 @@ async def register(ctx):
 async def pick(ctx, *, team_name: str):
     user_id = ctx.author.id
     username = str(ctx.author)
+
+    # Check if the current time is after 6:01 AM EST
+    now = datetime.now(timezone.utc)
+    est_now = now.astimezone(timezone(timedelta(hours=-4)))
+    if est_now.hour < 6 or (est_now.hour == 6 and est_now.minute < 1):
+        await ctx.send(f"{username.title()}, you cannot make a pick until after 6:01 AM EST.")
+        return
 
     # Check if the user is registered
     existing_user = supabase.table('users').select(
@@ -697,33 +712,62 @@ async def check_and_update_winners(channel):
     completed_games = {game['id']: game for game in scores_data if game['completed']
                        and convert_to_est(game['commence_time']).date() == yesterday}
 
+    print(f"Completed games from yesterday: {completed_games}")
+
+    for game_id, game_info in completed_games.items():
+        print(f"Processing game ID: {game_id}")
+        scores = game_info['scores']
+        team1_name, team2_name = scores[0]['name'], scores[1]['name']
+        team1_score, team2_score = scores[0]['score'], scores[1]['score']
+        winner = team1_name if int(team1_score) > int(
+            team2_score) else team2_name
+
+        pick_game = supabase.table('games').select(
+            '*').eq('game_id', game_id).execute()
+        if pick_game.data:
+            pick_game = pick_game.data[0]
+            if pick_game['result'] is None:
+                print(f"Updating result for game ID: {
+                      game_id} with winner: {winner}")
+                supabase.table('games').update({
+                    'result': winner
+                }).eq('game_id', game_id).execute()
+            else:
+                print(f"Game ID: {game_id} already has a result: {
+                      pick_game['result']}")
+        else:
+            print(f"No game found in database for game ID: {game_id}")
+
+    # Now check and update the users' streaks
     users_data = supabase.table('users').select('*').execute()
     for user in users_data.data:
         current_pick = user['current_pick']
+        current_pick_game_id = user['current_game_id']
         if current_pick:
             pick_game = supabase.table('games').select(
-                '*').eq('game_id', current_pick).execute()
+                '*').eq('game_id', current_pick_game_id).execute()
             if pick_game.data:
                 pick_game = pick_game.data[0]
                 game_id = pick_game['game_id']
-                if game_id in completed_games:
-                    scores = completed_games[game_id]['scores']
-                    team1_name, team2_name = scores[0]['name'], scores[1]['name']
-                    team1_score, team2_score = scores[0]['score'], scores[1]['score']
-                    winner = team1_name if team1_score > team2_score else team2_name
-                    if user['current_pick'] == winner:
-                        new_streak = user['current_streak'] + 1
-                    else:
-                        new_streak = 0
+                result = pick_game['result']
+                if result:
+                    print(f"Processing user {
+                          user['user_id']} with current pick: {current_pick}")
+                    new_streak = user['streak'] + \
+                        1 if user['current_pick'] == result else 0
 
+                    # Update user's streak and reset current pick
+                    print(f"Updating user ID: {
+                          user['user_id']} with new streak: {new_streak}")
                     supabase.table('users').update({
-                        'current_streak': new_streak,
+                        'streak': new_streak,
                         'current_pick': None  # Reset the pick after processing
                     }).eq('user_id', user['user_id']).execute()
 
-                    # Send a message to the channel with the update
-                    print(f"User {user['user_id']} picked {user['current_pick']} for game {
-                          game_id}. Result: {winner} won. New streak: {new_streak}.")
+                else:
+                    print(f"No result found for game ID: {game_id}")
+            else:
+                print(f"No game found in database for game ID: {current_pick}")
 
 
 @tasks.loop(hours=24)
@@ -743,12 +787,15 @@ async def daily_check_winners_task():
 
 @daily_check_winners_task.before_loop
 async def before_daily_check_winners_task():
+    print("Setting initial start time for daily_check_winners_task")
     await bot.wait_until_ready()
     now = datetime.now(timezone.utc)
     est_now = now.astimezone(timezone(timedelta(hours=-4)))
     target_time = est_now.replace(hour=6, minute=0, second=0, microsecond=0)
     if est_now >= target_time:
         target_time += timedelta(days=1)
+    print(f"Sleeping until {target_time.astimezone(
+        timezone(timedelta(hours=-4))).strftime('%Y-%m-%d %I:%M %p EST')}")
     await discord.utils.sleep_until(target_time)
 
 
