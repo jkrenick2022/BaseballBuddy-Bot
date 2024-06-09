@@ -2,10 +2,12 @@ import requests
 import os
 from dotenv import load_dotenv
 import discord
+from discord import Color
 from discord.ext import commands, tasks
-from datetime import datetime, timedelta, timezone
-import json
+from datetime import datetime, timedelta, timezone, date
+import difflib
 from supabase import create_client, Client
+import statsapi
 
 # Load environment variables from .env file
 load_dotenv()
@@ -17,9 +19,6 @@ SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Load team data from JSON file
-with open('team_data.json', 'r') as f:
-    team_data = json.load(f)
 
 # Initialize the bot with commands and intents
 intents = discord.Intents.default()
@@ -27,7 +26,7 @@ intents.messages = True
 intents.guilds = True
 intents.message_content = True  # Ensure the bot can read message content
 
-bot = commands.Bot(command_prefix='mlb ', intents=intents)
+bot = commands.Bot(command_prefix='mlb ', intents=intents, help_command=None)
 
 # Initializes the bot when it is logged on
 
@@ -35,7 +34,7 @@ bot = commands.Bot(command_prefix='mlb ', intents=intents)
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
-    activity = discord.Game(name="Baseball Helper")
+    activity = discord.Game(name="MLB Help")
     await bot.change_presence(status=discord.Status.online, activity=activity)
     daily_odds.start()  # Start the daily odds task
     daily_scores.start()  # Start the daily scores task
@@ -50,6 +49,22 @@ def convert_to_est(utc_time):
         utc_time, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
     est_dt = utc_dt.astimezone(timezone(timedelta(hours=-4)))
     return est_dt
+
+# get team data from supabase
+
+
+def get_team_data():
+    response = supabase.table('team_data').select('*').execute()
+
+    team_data = {}
+    for team in response.data:
+        team_name = team['team_name']
+        team_data[team_name] = {
+            'color': team['color'],
+            'logo': team['logo']
+        }
+
+    return team_data
 
 
 # Gets the baseball odds from the API
@@ -272,6 +287,9 @@ async def send_results(channel):
             'loser': loser
         }
 
+    # Fetch team data from Supabase
+    team_data = get_team_data()
+
     # Send embedded messages with the scores
     for key, value in results.items():
         team1_name = value['team1_name']
@@ -304,6 +322,7 @@ async def send_results(channel):
                 int(winning_team_info['color'][1:], 16))
 
         await channel.send(embed=embed)
+
 
 # Set the initial start time for the daily scores task
 
@@ -595,10 +614,6 @@ async def view(ctx, member: discord.Member = None):
     current_game_id = user_data.get('current_game_id')
     streak = user_data.get('streak', 0)
 
-    if not current_pick or not current_game_id:
-        await ctx.send(f"{username.title()}, does not have an active pick. Their current streak is {streak}.")
-        return
-
     # Fetch today's games to display the game details
     api_key = os.getenv('ODDS_API_KEY')
     if not api_key:
@@ -611,24 +626,25 @@ async def view(ctx, member: discord.Member = None):
         game['commence_time']).date() == today}
 
     selected_game = games_today.get(current_game_id)
-    if not selected_game:
-        await ctx.send(f"{username.title()}, no game found for their current pick today. Their current streak is {streak}.")
-        return
-
-    team1 = selected_game['away_team']
-    team2 = selected_game['home_team']
-    commence_time = convert_to_est(
-        selected_game['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')
+    if selected_game:
+        team1 = selected_game['away_team']
+        team2 = selected_game['home_team']
+        commence_time = convert_to_est(
+            selected_game['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')
+    else:
+        team1 = team2 = commence_time = "No active game found"
 
     embed = discord.Embed(
-        title=f"{username.title()}'s Current Pick",
+        title=f"{username.title()}'s Profile",
         description=f"Current Streak: {streak}",
         color=discord.Color.blue()
     )
 
-    embed.add_field(name="Game", value=f"{team1} vs {team2}", inline=False)
+    embed.add_field(name="Current Pick",
+                    value=current_pick if current_pick else "No current pick", inline=False)
+    embed.add_field(name="Current Game", value=f"{
+                    team1} vs {team2}", inline=False)
     embed.add_field(name="Commence Time", value=commence_time, inline=False)
-    embed.add_field(name="Their Pick", value=current_pick, inline=False)
 
     await ctx.send(embed=embed)
 
@@ -734,6 +750,373 @@ async def before_daily_check_winners_task():
     if est_now >= target_time:
         target_time += timedelta(days=1)
     await discord.utils.sleep_until(target_time)
+
+
+@bot.command()
+async def seasonstats(ctx, first_name: str, last_name: str, stat_category: str):
+    try:
+        full_name = f"{first_name} {last_name}".lower()
+
+        # Fetch all player names from Supabase
+        all_players = supabase.table('players').select('player_name').execute()
+        player_names = [player['player_name'] for player in all_players.data]
+
+        # Find the closest match for the player name
+        closest_matches = difflib.get_close_matches(
+            full_name, player_names, n=1, cutoff=0.6)
+        if not closest_matches:
+            await ctx.send(f"Sorry, no match found for {full_name.title()}. Please try again with a different player name.")
+            return
+
+        matched_player_name = closest_matches[0]
+        player_data = supabase.table('players').select(
+            '*').eq('player_name', matched_player_name).execute()
+        player_info = player_data.data[0]
+
+        # Get player ID from statsapi
+        player = statsapi.lookup_player(matched_player_name)
+        player_id = player[0]['id']
+        stat_category = stat_category.lower()
+
+        image_url = player_info.get('image_url', '')
+        team_raw = player_info.get('team', 'Unknown Team').split()[:-1]
+        team_parts = ' '.join(team_raw).split('-')
+        team = ' '.join(team_parts).title()
+
+        # Fetch team data from Supabase
+        team_data = get_team_data()
+
+        # Fetch the team color from Supabase
+        team_color_hex = team_data.get(team, {}).get(
+            'color', '#000000')  # Default to black if no color found
+
+        # Print the team name and color code for debugging
+        print(f"Team: {team}, Color: {team_color_hex}")
+
+        try:
+            team_color = discord.Color(int(team_color_hex.lstrip('#'), 16))
+        except ValueError:
+            print(f"Invalid color code for team {team}: {team_color_hex}")
+            team_color = discord.Color.default()
+
+        if stat_category == 'hitting':
+            stats = statsapi.player_stat_data(
+                player_id, group="[hitting]", type="season")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s {
+                    date.today().year} Hitting Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Home Runs", value=stats_[
+                            'homeRuns'], inline=True)
+            embed.add_field(name="RBI", value=stats_['rbi'], inline=True)
+            embed.add_field(name="Groundouts", value=stats_[
+                            'groundOuts'], inline=True)
+            embed.add_field(name="Airouts", value=stats_[
+                            'airOuts'], inline=True)
+            embed.add_field(name="Strikeouts", value=stats_[
+                            'strikeOuts'], inline=True)
+            embed.add_field(name="Runs", value=stats_['runs'], inline=True)
+            embed.add_field(name="Doubles", value=stats_[
+                            'doubles'], inline=True)
+            embed.add_field(name="Triples", value=stats_[
+                            'triples'], inline=True)
+            embed.add_field(name="At Bats", value=stats_[
+                            'atBats'], inline=True)
+            embed.add_field(name="Hits", value=stats_['hits'], inline=True)
+            embed.add_field(name="AVG", value=stats_['avg'], inline=True)
+            embed.add_field(name="Total Bases", value=stats_[
+                            'totalBases'], inline=True)
+            embed.add_field(name="Stolen Bases", value=stats_[
+                            'stolenBases'], inline=True)
+
+            await ctx.send(embed=embed)
+
+        elif stat_category == 'fielding':
+            stats = statsapi.player_stat_data(
+                player_id, group="[fielding]", type="season")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s {
+                    date.today().year} Fielding Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Innings", value=stats_[
+                            'innings'], inline=True)
+            embed.add_field(name="Assists", value=stats_[
+                            'assists'], inline=True)
+            embed.add_field(name="Putouts", value=stats_[
+                            'putOuts'], inline=True)
+            embed.add_field(name="Errors", value=stats_['errors'], inline=True)
+            embed.add_field(name="Chances", value=stats_[
+                            'chances'], inline=True)
+            embed.add_field(
+                name="RF/Game", value=stats_['rangeFactorPerGame'], inline=True)
+            embed.add_field(name="Double Plays", value=stats_[
+                            'doublePlays'], inline=True)
+            embed.add_field(name="Triple Plays", value=stats_[
+                            'triplePlays'], inline=True)
+
+            await ctx.send(embed=embed)
+
+        elif stat_category == 'pitching':
+            stats = statsapi.player_stat_data(
+                player_id, group="[pitching]", type="season")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s {
+                    date.today().year} Pitching Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Innings Pitched", value=stats_[
+                            'inningsPitched'], inline=True)
+            embed.add_field(name="Record", value=f"{
+                            stats_['wins']}-{stats_['losses']}", inline=True)
+            embed.add_field(name="# Pitches", value=stats_[
+                            'numberOfPitches'], inline=True)
+            embed.add_field(name="ERA", value=stats_['era'], inline=True)
+            embed.add_field(name="WHIP", value=stats_['whip'], inline=True)
+            embed.add_field(name="Groundouts", value=stats_[
+                            'groundOuts'], inline=True)
+            embed.add_field(name="Airouts", value=stats_[
+                            'airOuts'], inline=True)
+            embed.add_field(name="Strikeouts", value=stats_[
+                            'strikeOuts'], inline=True)
+            embed.add_field(name="Hits", value=stats_['hits'], inline=True)
+            embed.add_field(name="Runs", value=stats_['runs'], inline=True)
+            embed.add_field(name="Earned Runs", value=stats_[
+                            'earnedRuns'], inline=True)
+            embed.add_field(name="Doubles", value=stats_[
+                            'doubles'], inline=True)
+            embed.add_field(name="Triples", value=stats_[
+                            'triples'], inline=True)
+            embed.add_field(name="Home Runs", value=stats_[
+                            'homeRuns'], inline=True)
+
+            await ctx.send(embed=embed)
+
+    except IndexError:
+        await ctx.send(f"Sorry, {full_name.title()} is not in our database! Please try again with a different player!")
+
+
+@bot.command()
+async def careerstats(ctx, first_name: str, last_name: str, stat_category: str):
+    try:
+        full_name = f"{first_name} {last_name}".lower()
+
+        # Fetch all player names from Supabase
+        all_players = supabase.table('players').select('player_name').execute()
+        player_names = [player['player_name'] for player in all_players.data]
+
+        # Find the closest match for the player name
+        closest_matches = difflib.get_close_matches(
+            full_name, player_names, n=1, cutoff=0.6)
+        if not closest_matches:
+            await ctx.send(f"Sorry, no match found for {full_name.title()}. Please try again with a different player name.")
+            return
+
+        matched_player_name = closest_matches[0]
+        player_data = supabase.table('players').select(
+            '*').eq('player_name', matched_player_name).execute()
+        player_info = player_data.data[0]
+
+        # Get player ID from statsapi
+        player = statsapi.lookup_player(matched_player_name)
+        player_id = player[0]['id']
+        stat_category = stat_category.lower()
+
+        image_url = player_info.get('image_url', '')
+        team_raw = player_info.get('team', 'Unknown Team').split()[:-1]
+        team_parts = ' '.join(team_raw).split('-')
+        team = ' '.join(team_parts).title()
+
+        # Fetch team data from Supabase
+        team_data = get_team_data()
+
+        # Fetch the team color from Supabase
+        team_color_hex = team_data.get(team, {}).get(
+            'color', '#000000')  # Default to black if no color found
+
+        try:
+            team_color = discord.Color(int(team_color_hex.lstrip('#'), 16))
+        except ValueError:
+            print(f"Invalid color code for team {team}: {team_color_hex}")
+            team_color = discord.Color.default()
+
+        if stat_category == 'hitting':
+            stats = statsapi.player_stat_data(
+                player_id, group="[hitting]", type="career")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s Career Hitting Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Home Runs", value=stats_[
+                            'homeRuns'], inline=True)
+            embed.add_field(name="RBI", value=stats_['rbi'], inline=True)
+            embed.add_field(name="Groundouts", value=stats_[
+                            'groundOuts'], inline=True)
+            embed.add_field(name="Airouts", value=stats_[
+                            'airOuts'], inline=True)
+            embed.add_field(name="Strikeouts", value=stats_[
+                            'strikeOuts'], inline=True)
+            embed.add_field(name="Runs", value=stats_['runs'], inline=True)
+            embed.add_field(name="Doubles", value=stats_[
+                            'doubles'], inline=True)
+            embed.add_field(name="Triples", value=stats_[
+                            'triples'], inline=True)
+            embed.add_field(name="At Bats", value=stats_[
+                            'atBats'], inline=True)
+            embed.add_field(name="Hits", value=stats_['hits'], inline=True)
+            embed.add_field(name="AVG", value=stats_['avg'], inline=True)
+            embed.add_field(name="Total Bases", value=stats_[
+                            'totalBases'], inline=True)
+            embed.add_field(name="Stolen Bases", value=stats_[
+                            'stolenBases'], inline=True)
+
+            await ctx.send(embed=embed)
+
+        elif stat_category == 'fielding':
+            stats = statsapi.player_stat_data(
+                player_id, group="[fielding]", type="career")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s Career Fielding Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Innings", value=stats_[
+                            'innings'], inline=True)
+            embed.add_field(name="Assists", value=stats_[
+                            'assists'], inline=True)
+            embed.add_field(name="Putouts", value=stats_[
+                            'putOuts'], inline=True)
+            embed.add_field(name="Errors", value=stats_['errors'], inline=True)
+            embed.add_field(name="Chances", value=stats_[
+                            'chances'], inline=True)
+            embed.add_field(
+                name="RF/Game", value=stats_['rangeFactorPerGame'], inline=True)
+            embed.add_field(name="Double Plays", value=stats_[
+                            'doublePlays'], inline=True)
+            embed.add_field(name="Triple Plays", value=stats_[
+                            'triplePlays'], inline=True)
+
+            await ctx.send(embed=embed)
+
+        elif stat_category == 'pitching':
+            stats = statsapi.player_stat_data(
+                player_id, group="[pitching]", type="career")
+            stats_ = stats['stats'][0]['stats']
+
+            embed = discord.Embed(
+                title=f"{matched_player_name.title()}'s Career Pitching Stats",
+                description=f"Team: {team}",
+                color=team_color
+            )
+            embed.set_thumbnail(url=image_url)
+            embed.add_field(name="Games Played", value=stats_[
+                            'gamesPlayed'], inline=True)
+            embed.add_field(name="Innings Pitched", value=stats_[
+                            'inningsPitched'], inline=True)
+            embed.add_field(name="Record", value=f"{
+                            stats_['wins']}-{stats_['losses']}", inline=True)
+            embed.add_field(name="# Pitches", value=stats_[
+                            'numberOfPitches'], inline=True)
+            embed.add_field(name="ERA", value=stats_['era'], inline=True)
+            embed.add_field(name="WHIP", value=stats_['whip'], inline=True)
+            embed.add_field(name="Groundouts", value=stats_[
+                            'groundOuts'], inline=True)
+            embed.add_field(name="Airouts", value=stats_[
+                            'airOuts'], inline=True)
+            embed.add_field(name="Strikeouts", value=stats_[
+                            'strikeOuts'], inline=True)
+            embed.add_field(name="Hits", value=stats_['hits'], inline=True)
+            embed.add_field(name="Runs", value=stats_['runs'], inline=True)
+            embed.add_field(name="Earned Runs", value=stats_[
+                            'earnedRuns'], inline=True)
+            embed.add_field(name="Doubles", value=stats_[
+                            'doubles'], inline=True)
+            embed.add_field(name="Triples", value=stats_[
+                            'triples'], inline=True)
+            embed.add_field(name="Home Runs", value=stats_[
+                            'homeRuns'], inline=True)
+
+            await ctx.send(embed=embed)
+
+    except IndexError:
+        await ctx.send(f"Sorry, {full_name.title()} is not in our database! Please try again with a different player!")
+
+
+@bot.command(name='help')
+async def mlb_help(ctx):
+    embed = discord.Embed(
+        title="MLB Bot Help",
+        description="List of commands for the MLB bot",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="mlb streak register",
+        value="Register for the streak game.",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb streak pick <team_name>",
+        value="Pick a team for today's game. Example: `mlb streak pick yankees`",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb streak reset",
+        value="Reset your pick if the game has not started yet.",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb streak profile [@user]",
+        value="View your or another user's streak profile.",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb streak leaderboard",
+        value="View the current streak leaderboard.",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb seasonstats <first_name> <last_name> <stat_category>",
+        value="Get the current season stats for a player. Example: `mlb seasonstats aaron judge hitting`",
+        inline=False
+    )
+    embed.add_field(
+        name="mlb careerstats <first_name> <last_name> <stat_category>",
+        value="Get the career stats for a player. Example: `mlb careerstats mike trout hitting`",
+        inline=False
+    )
+
+    await ctx.send(embed=embed)
 
 
 # Run the bot with the token from the developer portal
