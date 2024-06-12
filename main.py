@@ -508,38 +508,47 @@ async def pick(ctx, *, team_name: str):
         await ctx.send(f"{username.title()}, you are not registered. Please register first using `mlb streak register`.")
         return
 
+    # Fetch the user's current pick and game ID
+    user_data = existing_user.data[0]
+    current_game_id = user_data.get('current_game_id')
+    current_pick = user_data.get('current_pick')
+
     # Fetch today's games from the database
     today = datetime.now(timezone.utc).date()
     games_today = supabase.table('games').select('*').execute().data
-    games_today = [game for game in games_today if convert_to_est(
-        game['commence_time']).date() == today]
+    games_today = {game['game_id']: game for game in games_today if convert_to_est(
+        game['commence_time']).date() == today}
 
-    if not games_today:
-        await ctx.send("No games today.")
-        return
+    # Check if the user has already picked a game and if it has started or is within 10 minutes of starting
+    if current_game_id:
+        current_game = games_today.get(current_game_id)
+        if current_game:
+            game_time = convert_to_est(current_game['commence_time'])
+            current_time = datetime.now(timezone(timedelta(hours=-4)))
+            if current_time >= game_time or (game_time - current_time).total_seconds() < 600:
+                await ctx.send(f"{username.title()}, you cannot change your pick within 10 minutes of the game's start time.")
+                return
 
     # Normalize the team name input for comparison
     normalized_team_name = team_name.strip().lower()
 
     # Find the game with the specified team
     selected_game = None
-    for game in games_today:
+    for game_id, game in games_today.items():
         away_team = game['team1'].strip().lower()
         home_team = game['team2'].strip().lower()
 
+        print(f"Checking game: {game['team1']} vs {game['team2']}, Game time: {convert_to_est(
+            game['commence_time'])}, Current time: {datetime.now(timezone(timedelta(hours=-4)))}")
+
         if normalized_team_name in away_team or normalized_team_name in home_team:
-            # Check if the game starts in less than 10 minutes
+            # Check if the game has already started or is within 10 minutes of starting
             game_time = convert_to_est(game['commence_time'])
-            current_time = datetime.now(timezone(timedelta(hours=-4)))
-            if (game_time - current_time).total_seconds() < 600:
-                await ctx.send(f"{username.title()}, you cannot change your pick within 10 minutes of the game's start time.")
+            if datetime.now(timezone(timedelta(hours=-4))) >= game_time or (game_time - datetime.now(timezone(timedelta(hours=-4)))).total_seconds() < 600:
+                await ctx.send(f"{username.title()}, the game you picked has already started or is within 10 minutes of starting. You cannot pick this game.")
                 return
-            # Check if the game has already started
-            print(f"Checking game: {game['team1']} vs {game['team2']}, Game time: {
-                  game_time}, Current time: {current_time}")
-            if current_time < game_time:
-                selected_game = game
-                break
+            selected_game = game
+            break
 
     if not selected_game:
         await ctx.send(f"{username.title()}, no game found for the team '{team_name}' today or the game has already started. Please check the team name and try again.")
