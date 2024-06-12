@@ -48,7 +48,7 @@ async def on_ready():
 
 def convert_to_est(time_str):
 
-    return datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S').astimezone(
+    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S').astimezone(
         timezone('US/Eastern')).strftime("%m-%d-%Y %I:%M:%S %p")
 
 
