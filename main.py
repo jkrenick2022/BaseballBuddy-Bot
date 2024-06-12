@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone, date
-from dateutil import tz
 import pytz
 import difflib
 from supabase import create_client, Client
@@ -48,20 +47,9 @@ async def on_ready():
 
 
 def convert_to_est(time_str):
-    # Parse the input time string to a datetime object in UTC
-    utc_time = datetime.strptime(
-        time_str, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc)
 
-    # Define the EST timezone
-    est = tz.gettz('America/New_York')
-
-    # Convert the UTC time to EST
-    est_time = utc_time.astimezone(est)
-
-    # Print debug information
-    print(f"Original UTC time: {utc_time}, Converted EST time: {est_time}")
-
-    return est_time
+    return datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S').astimezone(
+        timezone('US/Eastern')).strftime("%m-%d-%Y %I:%M:%S %p")
 
 
 # get team data from supabase
