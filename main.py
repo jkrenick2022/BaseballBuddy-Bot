@@ -27,7 +27,9 @@ intents.messages = True
 intents.guilds = True
 intents.message_content = True  # Ensure the bot can read message content
 
-bot = commands.Bot(command_prefix='mlb ', intents=intents, help_command=None)
+prefixes = ['mlb ', 'MLB ']
+bot = commands.Bot(command_prefix=['mlb ', 'MLB '],
+                   intents=intents, help_command=None)
 
 # Initializes the bot when it is logged on
 
@@ -506,15 +508,10 @@ async def pick(ctx, *, team_name: str):
         await ctx.send(f"{username.title()}, you are not registered. Please register first using `mlb streak register`.")
         return
 
-    # Fetch today's games
-    api_key = os.getenv('ODDS_API_KEY')
-    if not api_key:
-        await ctx.send("API key not found. Please set ODDS_API_KEY in the .env file.")
-        return
-
-    odds_data = get_baseball_odds(api_key)
+    # Fetch today's games from the database
     today = datetime.now(timezone.utc).date()
-    games_today = [game for game in odds_data if convert_to_est(
+    games_today = supabase.table('games').select('*').execute().data
+    games_today = [game for game in games_today if convert_to_est(
         game['commence_time']).date() == today]
 
     if not games_today:
@@ -527,13 +524,20 @@ async def pick(ctx, *, team_name: str):
     # Find the game with the specified team
     selected_game = None
     for game in games_today:
-        away_team = game['away_team'].strip().lower()
-        home_team = game['home_team'].strip().lower()
+        away_team = game['team1'].strip().lower()
+        home_team = game['team2'].strip().lower()
 
         if normalized_team_name in away_team or normalized_team_name in home_team:
-            # Check if the game has already started
+            # Check if the game starts in less than 10 minutes
             game_time = convert_to_est(game['commence_time'])
-            if datetime.now(timezone(timedelta(hours=-4))) < game_time:
+            current_time = datetime.now(timezone(timedelta(hours=-4)))
+            if (game_time - current_time).total_seconds() < 600:
+                await ctx.send(f"{username.title()}, you cannot change your pick within 10 minutes of the game's start time.")
+                return
+            # Check if the game has already started
+            print(f"Checking game: {game['team1']} vs {game['team2']}, Game time: {
+                  game_time}, Current time: {current_time}")
+            if current_time < game_time:
                 selected_game = game
                 break
 
@@ -542,11 +546,11 @@ async def pick(ctx, *, team_name: str):
         return
 
     # Determine the full team name for the user's pick
-    user_pick = selected_game['away_team'] if normalized_team_name in selected_game['away_team'].strip(
-    ).lower() else selected_game['home_team']
+    user_pick = selected_game['team1'] if normalized_team_name in selected_game['team1'].strip(
+    ).lower() else selected_game['team2']
 
     # Update the user's current pick and current game ID
-    game_id = selected_game['id']
+    game_id = selected_game['game_id']
     supabase.table('users').update({
         'current_pick': user_pick,
         'current_game_id': game_id
@@ -577,15 +581,10 @@ async def reset_pick(ctx):
         await ctx.send(f"{username.title()}, you do not have an active pick to reset.")
         return
 
-    # Fetch today's games to check if the game has started
-    api_key = os.getenv('ODDS_API_KEY')
-    if not api_key:
-        await ctx.send("API key not found. Please set ODDS_API_KEY in the .env file.")
-        return
-
-    odds_data = get_baseball_odds(api_key)
+    # Fetch today's games from the database
     today = datetime.now(timezone.utc).date()
-    games_today = {game['id']: game for game in odds_data if convert_to_est(
+    games_today = supabase.table('games').select('*').execute().data
+    games_today = {game['game_id']: game for game in games_today if convert_to_est(
         game['commence_time']).date() == today}
 
     selected_game = games_today.get(current_game_id)
@@ -629,21 +628,16 @@ async def view(ctx, member: discord.Member = None):
     current_game_id = user_data.get('current_game_id')
     streak = user_data.get('streak', 0)
 
-    # Fetch today's games to display the game details
-    api_key = os.getenv('ODDS_API_KEY')
-    if not api_key:
-        await ctx.send("API key not found. Please set ODDS_API_KEY in the .env file.")
-        return
-
-    odds_data = get_baseball_odds(api_key)
+    # Fetch today's games from the database
     today = datetime.now(timezone.utc).date()
-    games_today = {game['id']: game for game in odds_data if convert_to_est(
+    games_today = supabase.table('games').select('*').execute().data
+    games_today = {game['game_id']: game for game in games_today if convert_to_est(
         game['commence_time']).date() == today}
 
     selected_game = games_today.get(current_game_id)
     if selected_game:
-        team1 = selected_game['away_team']
-        team2 = selected_game['home_team']
+        team1 = selected_game['team1']
+        team2 = selected_game['team2']
         commence_time = convert_to_est(
             selected_game['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')
     else:
