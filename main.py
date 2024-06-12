@@ -47,9 +47,16 @@ async def on_ready():
 
 
 def convert_to_est(time_str):
+    # Parse the timestamp
+    dt = datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S')
+    # Localize the datetime object to UTC
+    dt_utc = pytz.utc.localize(dt)
+    # Convert to the desired timezone
+    dt_eastern = dt_utc.astimezone(pytz.timezone('US/Eastern'))
+    # Format the datetime object in m-d-y and 12-hour format
+    formatted_time = dt_eastern.strftime("%m-%d-%Y %I:%M:%S %p")
 
-    return datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S').astimezone(
-        timezone('US/Eastern')).strftime("%m-%d-%Y %I:%M:%S %p")
+    return formatted_time
 
 
 # get team data from supabase
