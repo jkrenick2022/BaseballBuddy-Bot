@@ -2,7 +2,6 @@ import requests
 import os
 from dotenv import load_dotenv
 import discord
-from discord import Color
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone, date
 import pytz
