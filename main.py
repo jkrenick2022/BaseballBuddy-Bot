@@ -50,7 +50,7 @@ async def on_ready():
 def convert_to_est(time_str):
     # Parse the input time string to a datetime object in UTC
     utc_time = datetime.strptime(
-        time_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+        time_str, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc)
 
     # Define the EST timezone
     est = tz.gettz('America/New_York')
