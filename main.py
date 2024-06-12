@@ -48,15 +48,21 @@ async def on_ready():
 
 
 def convert_to_est(time_str):
-    utc_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-    # fetch the timezone information
-    est = pytz.timezone('US/Eastern')
+    # Parse the input time string to a datetime object in UTC
+    utc_time = datetime.strptime(
+        time_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
 
-    # convert utc to est
+    # Define the EST timezone
+    est = tz.gettz('America/New_York')
+
+    # Convert the UTC time to EST
     est_time = utc_time.astimezone(est)
 
-    # return the converted value
+    # Print debug information
+    print(f"Original UTC time: {utc_time}, Converted EST time: {est_time}")
+
     return est_time
+
 
 # get team data from supabase
 
