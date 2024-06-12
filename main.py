@@ -54,13 +54,8 @@ def convert_to_est(timestamp: str) -> datetime:
     # Localize the naive datetime object to Eastern Time
     eastern = pytz.timezone('US/Eastern')
     dt_eastern = eastern.localize(dt)
-    print(f"Localized to Eastern Time: {dt_eastern}")
 
-    # Format the datetime object in m-d-y h:m:s AM/PM format
-    formatted_time = dt_eastern.strftime('%m-%d-%Y %I:%M %p')
-    print(f"Formatted time: {formatted_time}")
-
-    return formatted_time
+    return dt_eastern
 
 
 # get team data from supabase
