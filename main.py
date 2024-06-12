@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, timezone, date
+from dateutil import tz
 import pytz
 import difflib
 from supabase import create_client, Client
@@ -47,8 +48,8 @@ async def on_ready():
 
 
 def convert_to_est(time_str):
-    utc_time = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-    est = pytz.timezone('US/Eastern')
+    utc_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+    est = tz.gettz('America/New_York')
     est_time = utc_time.astimezone(est)
     return est_time
 
@@ -646,10 +647,10 @@ async def view(ctx, member: discord.Member = None):
     if selected_game:
         team1 = selected_game['team1']
         team2 = selected_game['team2']
-        commence_time = convert_to_est(
-            selected_game['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')
+        commence_time = convert_to_est(selected_game['commence_time'])
+        commence_time_str = commence_time.strftime('%Y-%m-%d %I:%M %p EST')
     else:
-        team1 = team2 = commence_time = "No active game found"
+        team1 = team2 = commence_time_str = "No active game found"
 
     embed = discord.Embed(
         title=f"{username.title()}'s Profile",
@@ -661,7 +662,8 @@ async def view(ctx, member: discord.Member = None):
                     value=current_pick if current_pick else "No current pick", inline=False)
     embed.add_field(name="Current Game", value=f"{
                     team1} vs {team2}", inline=False)
-    embed.add_field(name="Commence Time", value=commence_time, inline=False)
+    embed.add_field(name="Commence Time",
+                    value=commence_time_str, inline=False)
 
     await ctx.send(embed=embed)
 
