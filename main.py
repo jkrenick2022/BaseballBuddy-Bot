@@ -51,6 +51,7 @@ def convert_to_est(time_str):
     utc_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
     est = tz.gettz('America/New_York')
     est_time = utc_time.astimezone(est)
+    print(f"Converted time: {est_time.strftime('%Y-%m-%d %I:%M %p EST')}")
     return est_time
 
 # get team data from supabase
