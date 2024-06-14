@@ -47,13 +47,15 @@ async def on_ready():
 
 
 def convert_to_est(timestamp: str) -> datetime:
-    # Parse the datetime string into a naive datetime object
-    dt = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
-    print(f"Parsed datetime: {dt}")
+    print(timestamp)
+    # Remove the 'Z' character and parse the datetime string into a naive datetime object
+    dt = datetime.strptime(timestamp.rstrip('Z'), '%Y-%m-%dT%H:%M:%S')
 
-    # Localize the naive datetime object to Eastern Time
+    # Convert the naive datetime object from UTC to Eastern Time
+    utc = pytz.timezone('UTC')
+    dt_utc = utc.localize(dt)
     eastern = pytz.timezone('US/Eastern')
-    dt_eastern = eastern.localize(dt)
+    dt_eastern = dt_utc.astimezone(eastern)
 
     return dt_eastern
 
@@ -377,7 +379,7 @@ async def daily_games():
         team2 = game['home_team']
         commence_time_est = convert_to_est(game['commence_time'])
         formatted_commence_time = commence_time_est.strftime(
-            '%Y-%m-%d %I:%M %p')  # Format to 12-hour time with AM/PM
+            '%m-%d-%y %I:%M %p')  # Format to 12-hour time with AM/PM
 
         existing_game = supabase.table('games').select(
             '*').eq('game_id', game_id).execute()
