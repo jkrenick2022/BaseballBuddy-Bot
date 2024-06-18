@@ -1341,7 +1341,9 @@ async def prop(ctx):
 async def prop_finder(ctx, *, player_name_prop):
     api_key = os.getenv('ODDS_API_KEY')
     try:
-        player_name, prop = player_name_prop.rsplit(' ', 1)
+        input_ = player_name_prop.split()
+        player_name = ' '.join(input_[:-1])
+        prop = input_[-1]
     except ValueError:
         await ctx.send("Please provide the player's name followed by the prop.")
         return
@@ -1356,29 +1358,7 @@ async def prop_finder(ctx, *, player_name_prop):
         await ctx.send(f"No game found for {player_team} today.")
         return
 
-    for game_id in game_ids:
-        prop_odds = get_player_prop_odds(player_name, prop, game_id, api_key)
-        if prop_odds:
-            odds_message = f"Odds for player '{
-                player_name}' in game {game_id}:\n"
-            for odds in prop_odds:
-                odds_message += f"{odds['bookmaker']
-                                   }: {odds['price']} ({odds['point']})\n"
-            await ctx.send(odds_message)
-
-    dates, game_log_data = get_player_game_log(game_log_url, prop)
-    if not game_log_data:
-        await ctx.send(f"No game log data found for '{player_name}'.")
-        return
-
-    plot_buf = plot_game_log_data(player_name, prop, dates, game_log_data)
-
-    file = discord.File(fp=plot_buf, filename="plot.png")
-    embed = discord.Embed(
-        title=f"{player_name} - {prop.title()} Over Last {len(game_log_data)} Games")
-    embed.set_image(url="attachment://plot.png")
-
-    await ctx.send(file=file, embed=embed)
+    await ctx.send(f"Player Name: {player_name.title()}, Team: {player_team.title()}, Prop: {prop.title()}, Game IDs: {game_ids}")
 
     # Create a help command for the bot
 

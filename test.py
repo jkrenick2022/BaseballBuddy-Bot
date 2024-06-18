@@ -246,7 +246,7 @@ def plot_game_log_data(player_name, prop, dates, game_log_data):
 
 
 # Example usage
-player_name = 'Bryce Harper'
+player_name = 'Nolan Schanuel'
 prop = 'hits'
 
 
