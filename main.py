@@ -1354,7 +1354,7 @@ async def prop(ctx):
         await ctx.send('Invalid streak command. Use `mlb prop help` for more information.')
 
 
-@streak.command(name='finder')
+@prop.command(name='finder')
 async def prop_finder(ctx, *, player_name_prop):
     try:
         player_name, prop = player_name_prop.rsplit(' ', 1)
