@@ -1349,11 +1349,17 @@ async def prop_finder(ctx, *, player_name_prop):
         return
 
     player_team, game_log_url = get_player_data(player_name)
+
+    print(f"Player Team: {player_team}, Game Log URL: {game_log_url}")
+
     if not player_team:
         await ctx.send(f"No data found for player: {player_name}")
         return
 
     game_ids = get_players_game_id(player_team)
+
+    print(f"Game IDs: {game_ids}")
+
     if not game_ids:
         await ctx.send(f"No game found for {player_team} today.")
         return
