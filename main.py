@@ -1157,13 +1157,19 @@ def get_players_game_id(player_team):
         print("No games data found.")
         return None
 
+    print(f"Games data fetched: {games_data.data}")  # Debug print
+
     game_ids = []
     for game in games_data.data:
         game_date = datetime.strptime(
             game['commence_time'], "%Y-%m-%dT%H:%M:%S").date()
+        print(f"Checking game: {game}")  # Debug print
+        print(f"Game date: {game_date}, Today: {today}")  # Debug print
         if game_date == today:
             if player_team in [game['team1'], game['team2']]:
                 game_ids.append(game['game_id'])
+                print(f"Game ID matched: {game['game_id']}")  # Debug print
+
     if not game_ids:
         print(f"No game found for {player_team} today.")
         return None
