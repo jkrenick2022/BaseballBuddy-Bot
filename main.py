@@ -1135,24 +1135,18 @@ async def careerstats(ctx, first_name: str, last_name: str, stat_category: str):
 
 # Research Functions
 def get_player_data(player):
-    # get row from supabase for player
     player_data = supabase.table('players').select(
         '*').eq('player_name', player.title()).execute()
 
-    # Access the data attribute directly
     if player_data.data:
-        # Access the data returned by Supabase
-        player_url = (player_data.data[0]['player_link'])
-        player_team = (player_data.data[0]['team']
-                       [:-7].replace('-', ' ').title())
+        player_url = player_data.data[0]['player_link']
+        player_team = player_data.data[0]['team'][:-
+                                                  7].replace('-', ' ').title()
         print(player_team)
+        return player_team, player_url
     else:
         print(f"No data found for player: {player}")
         return None, None
-
-    game_log_url = player_url + 'game-log/'
-
-    return player_team, game_log_url
 
 
 def get_players_game_id(player_team):
@@ -1181,7 +1175,6 @@ def get_player_prop_odds(player, prop, game_id, api_key):
     base_url = f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{
         game_id}/odds/"
 
-    # Dictionary to map user-friendly prop names to API market keys
     market_identifiers = {
         'homeruns': 'batter_home_runs',
         'hits': 'batter_hits',
@@ -1250,18 +1243,13 @@ def get_player_prop_odds(player, prop, game_id, api_key):
 
 
 def get_player_game_log(url, prop):
-    # Send a GET request to the URL
     response = requests.get(url)
-
-    # Check if the request was successful
     if response.status_code != 200:
         print(f"Failed to retrieve page: {response.status_code}")
         return None, None
 
-    # Parse the HTML content using BeautifulSoup
     soup = BeautifulSoup(response.content, 'html.parser')
 
-    # Find the table headers
     try:
         thead = soup.find('div', class_='Page-colMain').find('div', class_='TableBase').find(
             'table', class_='TableBase-table').find('thead').find_all('th')
@@ -1271,7 +1259,6 @@ def get_player_game_log(url, prop):
 
     headers = [th.get_text(strip=True) for th in thead]
 
-    # Dictionary to map props to table headers
     prop_identifiers = {
         'hits': 'hhits',
         'runs': 'rruns',
@@ -1283,17 +1270,14 @@ def get_player_game_log(url, prop):
         'triples': '3btriples'
     }
 
-    # Normalize prop to match the table headers
     header_name = prop_identifiers.get(prop.lower())
     if not header_name:
         print(f"Property '{prop}' not found in the prop identifiers.")
         return None, None
 
-    # Normalize headers for comparison
     normalized_headers = [header.lower().replace(' ', '')
                           for header in headers]
 
-    # Determine the index of the column that matches the header name
     prop_index = None
     for index, header in enumerate(normalized_headers):
         normalized_header_name = header_name.lower().replace(' ', '')
@@ -1305,7 +1289,6 @@ def get_player_game_log(url, prop):
         print(f"Header '{header_name}' not found in the table headers.")
         return None, None
 
-    # Extract data from the first 5 rows
     try:
         data_rows = soup.find('div', class_='Page-colMain').find('div', class_='TableBase').find(
             'table', class_='TableBase-table').find('tbody').find_all('tr')[:5]
@@ -1351,11 +1334,12 @@ def plot_game_log_data(player_name, prop, dates, game_log_data):
 @bot.group()
 async def prop(ctx):
     if ctx.invoked_subcommand is None:
-        await ctx.send('Invalid streak command. Use `mlb prop help` for more information.')
+        await ctx.send('Invalid prop command. Use `mlb prop help` for more information.')
 
 
 @prop.command(name='finder')
 async def prop_finder(ctx, *, player_name_prop):
+    api_key = os.getenv('ODDS_API_KEY')
     try:
         player_name, prop = player_name_prop.rsplit(' ', 1)
     except ValueError:
@@ -1373,9 +1357,7 @@ async def prop_finder(ctx, *, player_name_prop):
         return
 
     for game_id in game_ids:
-        prop_odds = get_player_prop_odds(
-            player_name, prop, game_id, int(os.getenv('ODDS_CHANNEL_ID')))
-
+        prop_odds = get_player_prop_odds(player_name, prop, game_id, api_key)
         if prop_odds:
             odds_message = f"Odds for player '{
                 player_name}' in game {game_id}:\n"
