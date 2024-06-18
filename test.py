@@ -246,8 +246,8 @@ def plot_game_log_data(player_name, prop, dates, game_log_data):
 
 
 # Example usage
-player_name = 'Carlos Santana'
-prop = 'homeruns'
+player_name = 'Bryce Harper'
+prop = 'hits'
 
 
 player_team, game_log_url = get_player_data(player_name)
