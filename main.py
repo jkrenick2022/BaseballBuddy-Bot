@@ -1157,8 +1157,11 @@ def get_players_game_id(player_team):
         print("No games data found.")
         return None
 
+    print(f"Games data: {games_data.data}")
+
     todays_games = [game for game in games_data.data if convert_to_est(
         game['commence_time']).date() == today]
+
     print(f"Games from today: {todays_games}")
 
     game_ids = []
