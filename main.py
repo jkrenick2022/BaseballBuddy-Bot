@@ -1157,19 +1157,14 @@ def get_players_game_id(player_team):
         print("No games data found.")
         return None
 
-    print(f"Games data fetched: {games_data.data}")  # Debug print
+    todays_games = [game for game in games_data.data if convert_to_est(
+        game['commence_time']).date() == today]
+    print(f"Games from today: {todays_games}")
 
     game_ids = []
-    for game in games_data.data:
-        game_date = datetime.strptime(
-            game['commence_time'], "%Y-%m-%dT%H:%M:%S").date()
-        print(f"Checking game: {game}")  # Debug print
-        print(f"Game date: {game_date}, Today: {today}")  # Debug print
-        if game_date == today:
-            if player_team in [game['team1'], game['team2']]:
-                game_ids.append(game['game_id'])
-                print(f"Game ID matched: {game['game_id']}")  # Debug print
-
+    for game in todays_games:
+        if player_team in [game['team1'], game['team2']]:
+            game_ids.append(game['game_id'])
     if not game_ids:
         print(f"No game found for {player_team} today.")
         return None
@@ -1353,6 +1348,8 @@ async def prop_finder(ctx, *, player_name_prop):
     except ValueError:
         await ctx.send("Please provide the player's name followed by the prop.")
         return
+
+    print(f"Player Name: {player_name}, Prop: {prop}")
 
     player_team, game_log_url = get_player_data(player_name)
 

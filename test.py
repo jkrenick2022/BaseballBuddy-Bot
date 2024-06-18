@@ -65,13 +65,14 @@ def get_todays_game_id(player_team):
         print("No games data found.")
         return None
 
+    todays_games = [game for game in games_data.data if convert_to_est(
+        game['commence_time']).date() == today]
+    print(f"Games from today: {todays_games}")
+
     game_ids = []
-    for game in games_data.data:
-        game_date = datetime.strptime(
-            game['commence_time'], "%Y-%m-%dT%H:%M:%S").date()
-        if game_date == today:
-            if player_team in [game['team1'], game['team2']]:
-                game_ids.append(game['game_id'])
+    for game in todays_games:
+        if player_team in [game['team1'], game['team2']]:
+            game_ids.append(game['game_id'])
     if not game_ids:
         print(f"No game found for {player_team} today.")
         return None
