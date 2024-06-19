@@ -63,6 +63,14 @@ def convert_to_est(timestamp: str) -> datetime:
     return dt_eastern
 
 
+def convert_to_12hr_format(timestamp: str) -> str:
+    # Parse the datetime string into a naive datetime object
+    dt = datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S')
+
+    # Format the datetime object to a string in 12-hour format with AM/PM
+    return dt.strftime('%Y-%m-%d %I:%M:%S %p')
+
+
 # get team data from supabase
 
 
@@ -154,10 +162,11 @@ async def send_odds(ctx):
         return
 
     for game in games_today:
+        est_time = convert_to_est(game['commence_time'])
         embed = discord.Embed(
             title=f"{game['away_team']} vs {game['home_team']}",
-            description=f"Commence Time: {convert_to_est(
-                game['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')}",
+            description=f"Commence Time: {convert_to_12hr_format(
+                est_time.strftime('%Y-%m-%dT%H:%M:%S'))} EST",
             color=discord.Color.blue()
         )
 
@@ -190,6 +199,7 @@ async def send_odds(ctx):
                         name=f"{bookmaker['title']} - {market_name}", value=outcomes, inline=False)
 
         await ctx.send(embed=embed)
+
 
 # Set the initial start time for the daily odds task
 
@@ -269,7 +279,7 @@ async def send_results(channel):
             'completed': game['completed'],
             'scores': game['scores']
         }
-        for game in scores_data if game['completed'] == True
+        for game in scores_data if game['completed']
     }
 
     results = {}
@@ -311,10 +321,11 @@ async def send_results(channel):
         winning_team_info = team_data.get(winner_name, {})
         losing_team_info = team_data.get(loser_name, {})
 
+        est_time = convert_to_est(value['commence_time'])
         embed = discord.Embed(
             title=f"{team1_name} vs {team2_name}",
-            description=f"Commence Time: {convert_to_est(
-                value['commence_time']).strftime('%Y-%m-%d %I:%M %p EST')}",
+            description=f"Commence Time: {convert_to_12hr_format(
+                est_time.strftime('%Y-%m-%dT%H:%M:%S'))} EST",
             color=discord.Color.blue()
         )
 
@@ -334,6 +345,7 @@ async def send_results(channel):
                 int(winning_team_info['color'][1:], 16))
 
         await channel.send(embed=embed)
+
 
 # Set the initial start time for the daily scores task
 
@@ -529,11 +541,13 @@ async def pick(ctx, *, team_name: str):
     games_today = {game['game_id']: game for game in games_today if convert_to_est(
         game['commence_time']).date() == today}
 
-    # Check if the user has already picked a game and if it has started or is within 10 minutes of starting
     if current_game_id:
         current_game = games_today.get(current_game_id)
         if current_game:
-            game_time = convert_to_est(current_game['commence_time'])
+            game_time_str = convert_to_12hr_format(
+                current_game['commence_time'])
+            game_time = datetime.strptime(
+                game_time_str, '%Y-%m-%d %I:%M:%S %p').replace(tzinfo=timezone(timedelta(hours=-4)))
             current_time = datetime.now(timezone(timedelta(hours=-4)))
             if current_time >= game_time or (game_time - current_time).total_seconds() < 600:
                 await ctx.send(f"{username.title()}, you cannot change your pick within 10 minutes of the game's start time.")
@@ -548,13 +562,16 @@ async def pick(ctx, *, team_name: str):
         away_team = game['team1'].strip().lower()
         home_team = game['team2'].strip().lower()
 
-        print(f"Checking game: {game['team1']} vs {game['team2']}, Game time: {convert_to_est(
-            game['commence_time'])}, Current time: {datetime.now(timezone(timedelta(hours=-4)))}")
+        game_time_str = convert_to_12hr_format(game['commence_time'])
+        game_time = datetime.strptime(
+            game_time_str, '%Y-%m-%d %I:%M:%S %p').replace(tzinfo=timezone(timedelta(hours=-4)))
+        current_time = datetime.now(timezone(timedelta(hours=-4)))
+
+        print(f"Checking game: {game['team1']} vs {game['team2']}, Game time: {
+              game_time_str}, Current time: {current_time.strftime('%Y-%m-%d %I:%M:%S %p')}")
 
         if normalized_team_name in away_team or normalized_team_name in home_team:
-            # Check if the game has already started or is within 10 minutes of starting
-            game_time = convert_to_est(game['commence_time'])
-            if datetime.now(timezone(timedelta(hours=-4))) >= game_time or (game_time - datetime.now(timezone(timedelta(hours=-4)))).total_seconds() < 600:
+            if current_time >= game_time or (game_time - current_time).total_seconds() < 600:
                 await ctx.send(f"{username.title()}, the game you picked has already started or is within 10 minutes of starting. You cannot pick this game.")
                 return
             selected_game = game
@@ -578,8 +595,8 @@ async def pick(ctx, *, team_name: str):
     await ctx.send(f"{username.title()}, you have selected the {user_pick} for today, good luck!")
 
 
-@streak.command(name='reset')
-@is_streak_channel()
+@ streak.command(name='reset')
+@ is_streak_channel()
 async def reset_pick(ctx):
     user_id = ctx.author.id
     username = str(ctx.author)
@@ -626,8 +643,8 @@ async def reset_pick(ctx):
     await ctx.send(f"{username.title()}, your pick has been reset. You can now make a new pick for today's games.")
 
 
-@streak.command(name='profile')
-@is_streak_channel()
+@ streak.command(name='profile')
+@ is_streak_channel()
 async def view(ctx, member: discord.Member = None):
     if member is None:
         member = ctx.author
@@ -678,8 +695,8 @@ async def view(ctx, member: discord.Member = None):
     await ctx.send(embed=embed)
 
 
-@streak.command(name='leaderboard')
-@is_streak_channel()
+@ streak.command(name='leaderboard')
+@ is_streak_channel()
 async def leaderboard(ctx):
     # Fetch all users and sort by streak
     users_data = supabase.table('users').select('*').execute()
@@ -706,7 +723,7 @@ async def leaderboard(ctx):
     await ctx.send(embed=embed)
 
 
-@streak.command(name='check_winners')
+@ streak.command(name='check_winners')
 async def check_winners(ctx):
     await check_and_update_winners(ctx.channel)
 
@@ -784,7 +801,7 @@ async def check_and_update_winners(channel):
                 print(f"No game found in database for game ID: {current_pick}")
 
 
-@tasks.loop(hours=24)
+@ tasks.loop(hours=24)
 async def daily_check_winners_task():
     await bot.wait_until_ready()
     now = datetime.now(timezone.utc)
@@ -799,7 +816,7 @@ async def daily_check_winners_task():
             print("Channel not found")
 
 
-@daily_check_winners_task.before_loop
+@ daily_check_winners_task.before_loop
 async def before_daily_check_winners_task():
     print("Setting initial start time for daily_check_winners_task")
     await bot.wait_until_ready()
@@ -813,7 +830,7 @@ async def before_daily_check_winners_task():
     await discord.utils.sleep_until(target_time)
 
 
-@bot.command()
+@ bot.command()
 async def seasonstats(ctx, first_name: str, last_name: str, stat_category: str):
     try:
         full_name = f"{first_name} {last_name}".lower()
@@ -976,7 +993,7 @@ async def seasonstats(ctx, first_name: str, last_name: str, stat_category: str):
         await ctx.send(f"Sorry, {full_name.title()} is not in our database! Please try again with a different player!")
 
 
-@bot.command()
+@ bot.command()
 async def careerstats(ctx, first_name: str, last_name: str, stat_category: str):
     try:
         full_name = f"{first_name} {last_name}".lower()
@@ -1132,10 +1149,326 @@ async def careerstats(ctx, first_name: str, last_name: str, stat_category: str):
     except IndexError:
         await ctx.send(f"Sorry, {full_name.title()} is not in our database! Please try again with a different player!")
 
+
+# Functions for Prop Research feature
+def get_player_data(player):
+    # get row from supabase for player
+    player_data = supabase.table('players').select(
+        '*').eq('player_name', player.title()).execute()
+
+    # Access the data attribute directly
+    if player_data.data:
+        # Access the data returned by Supabase
+        player_url = (player_data.data[0]['player_link'])
+        player_team = (player_data.data[0]['team']
+                       [:-7].replace('-', ' ').title())
+    else:
+        print(f"No data found for player: {player}")
+        return None, None
+
+    game_log_url = player_url + 'game-log/'
+
+    return player_team, game_log_url
+
+
+def get_players_game_id(player_team):
+    today = datetime.now().date()  # Ensure today's date is correct
+    games_data = supabase.table('games').select('*').execute()
+
+    if not games_data.data:
+        print("No games data found.")
+        return None
+
+    todays_games = [game for game in games_data.data if datetime.strptime(
+        game['commence_time'], '%Y-%m-%dT%H:%M:%S').date() == today]
+
+    game_ids = [game['game_id'] for game in todays_games if player_team in [
+        game['team1'], game['team2']]]
+
+    if not game_ids:
+        print(f"No game found for {player_team} today.")
+        return None
+
+    return game_ids
+
+
+def get_player_prop_odds(player, prop, game_id, api_key):
+    base_url = f"https://api.the-odds-api.com/v4/sports/baseball_mlb/events/{
+        game_id}/odds/"
+
+    # Dictionary to map user-friendly prop names to API market keys
+    market_identifiers = {
+        'homeruns': 'batter_home_runs',
+        'hits': 'batter_hits',
+        'rbis': 'batter_rbis',
+        'runs': 'batter_runs_scored',
+        'doubles': 'batter_doubles',
+        'triples': 'batter_triples',
+        'walks': 'batter_walks',
+        'strikeouts': 'batter_strikeouts',
+        'pitcher_strikeouts': 'pitcher_strikeouts',
+        'pitcher_hits_allowed': 'pitcher_hits_allowed',
+        'pitcher_walks': 'pitcher_walks',
+        'pitcher_earned_runs': 'pitcher_earned_runs'
+    }
+
+    market = market_identifiers.get(prop.lower())
+    if not market:
+        print(f"Market identifier for '{prop}' not found.")
+        return None
+
+    params = {
+        'dateFormat': 'iso',
+        'oddsFormat': 'american',
+        'apiKey': api_key,
+        'regions': 'us,us2',
+        'bookmakers': 'fanduel',
+        'markets': market
+    }
+
+    response = requests.get(base_url, params=params)
+    if response.status_code == 404:
+        error_message = response.json().get("message", "")
+        if error_message == "Event not found. The event may have expired or the event id is invalid.":
+            print(f"Failed to get odds: Event not found for game ID {
+                  game_id}. The event may have expired or the event ID is invalid.")
+        else:
+            print(f"Failed to get odds: {
+                  response.status_code}, {response.text}")
+        return None
+    elif response.status_code != 200:
+        print(f"Failed to get odds: {response.status_code}, {response.text}")
+        return None
+
+    odds_data = response.json()
+
+    player_odds = []
+    for bookmaker in odds_data.get('bookmakers', []):
+        for market_data in bookmaker.get('markets', []):
+            if market_data['key'] == market:
+                for outcome in market_data.get('outcomes', []):
+                    if player.lower() in outcome['description'].lower():
+                        player_odds.append({
+                            'bookmaker': bookmaker['title'],
+                            'market': market_data['key'],
+                            'description': outcome['description'],
+                            'price': outcome['price'],
+                            'point': outcome['point']
+                        })
+
+    if not player_odds:
+        print(f"No odds found for player '{player}' in market '{prop}'.")
+
+    return player_odds
+
+
+def get_player_game_log(url, prop):
+    # Send a GET request to the URL
+    response = requests.get(url)
+
+    # Check if the request was successful
+    if response.status_code != 200:
+        print(f"Failed to retrieve page: {response.status_code}")
+        return None, None
+
+    # Parse the HTML content using BeautifulSoup
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    # Find the table headers
+    try:
+        thead = soup.find('div', class_='Page-colMain').find('div', class_='TableBase').find(
+            'table', class_='TableBase-table').find('thead').find_all('th')
+    except AttributeError as e:
+        print(f"Failed to parse table headers: {e}")
+        return None, None
+
+    headers = [th.get_text(strip=True) for th in thead]
+    print(f"Table Headers: {headers}")
+
+    # Dictionary to map props to table headers for both batters and pitchers
+    prop_identifiers = {
+        'hits': 'hhits',
+        'runs': 'rruns',
+        'rbi': 'rbirunsbattedin',
+        'homeruns': 'hrhomeruns',
+        'strikeouts': 'sostrikeouts',
+        'walks': 'bbbaseonballs(walk)',
+        'doubles': '2bdoubles',
+        'triples': '3btriples',
+        'pitcher_hits_allowed': 'hhits',
+        'pitcher_earned_runs': 'erearnedruns',
+        'pitcher_walks': 'bbbaseonballs(walk)',
+        'pitcher_strikeouts': 'sostrikeouts'
+    }
+
+    # Normalize prop to match the table headers
+    header_name = prop_identifiers.get(prop.lower())
+    if not header_name:
+        print(f"Property '{prop}' not found in the prop identifiers.")
+        return None, None
+
+    print(f"Header Name for '{prop}': {header_name}")
+
+    # Normalize headers for comparison
+    normalized_headers = [header.lower().replace(' ', '')
+                          for header in headers]
+
+    print(f"Normalized Headers: {normalized_headers}")
+
+    # Determine the index of the column that matches the header name
+    prop_index = None
+    for index, header in enumerate(normalized_headers):
+        normalized_header_name = header_name.lower().replace(' ', '')
+        if header == normalized_header_name:
+            prop_index = index
+            break
+
+    if prop_index is None:
+        print(f"Header '{header_name}' not found in the table headers.")
+        return None, None
+
+    # Extract data from the first 5 rows
+    try:
+        data_rows = soup.find('div', class_='Page-colMain').find('div', class_='TableBase').find(
+            'table', class_='TableBase-table').find('tbody').find_all('tr')[:5]
+    except AttributeError as e:
+        print(f"Failed to parse table rows: {e}")
+        return None, None
+
+    dates = []
+    prop_data = []
+    for row in data_rows:
+        cells = row.find_all('td')
+        if len(cells) > prop_index:
+            # Assuming the date is in the first column
+            dates.append(cells[0].get_text(strip=True))
+            prop_data.append(cells[prop_index].get_text(strip=True))
+
+    return dates, prop_data
+
+# Function to plot game log data
+
+
+def plot_game_log_data(player_name, prop, dates, game_log_data):
+    values = [float(data) for data in game_log_data]
+
+    plt.figure(figsize=(12, 6))  # Increase the size of the plot
+    plt.bar(dates, values, color='b')
+
+    plt.title(f'{player_name} - {prop.title()
+                                 } Over Last {len(game_log_data)} Games', fontsize=16)
+    plt.xlabel('Date', fontsize=14)
+    plt.ylabel(prop.title(), fontsize=14)
+    plt.xticks(rotation=45, fontsize=12)
+    plt.yticks(fontsize=12)
+    plt.grid(False)
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+    return buf
+
+
+# Bot group for prop functions
+@bot.group()
+async def prop(ctx):
+    if ctx.invoked_subcommand is None:
+        await ctx.send('Invalid prop command. Use `mlb prop help` for more information.')
+
+
+@prop.command(name='help')
+async def streak_help(ctx):
+    help_text = [
+        "**Prop Research Command: mlb prop finder <player_name> <prop>**",
+        "***Available Markets:***",
+        "***1. homeruns***",
+        "***2. hits***",
+        "***3. rbis***",
+        "***4. doubles***",
+        "***5. triples***",
+        "***6. walks***",
+        "***7. strikeouts***",
+        "***8. pitcher_strikeouts***",
+        "***9. pitcher_hits_allowed***",
+        "***10. pitcher_walks***",
+        "***11. pitcher_earned_runs***",
+    ]
+    embed = discord.Embed(
+        title="Streak Game Help",
+        description="\n".join(help_text),
+        color=discord.Color.blue()
+    )
+    await ctx.send(embed=embed)
+
+
+@prop.command(name='finder')
+async def prop_finder(ctx, *, player_name_prop):
+    api_key = os.getenv('ODDS_API_KEY')
+    try:
+        input_ = player_name_prop.split()
+        player_name = ' '.join(input_[:-1])
+        prop = input_[-1]
+    except ValueError:
+        await ctx.send("Please provide the player's name followed by the prop.")
+        return
+
+    print(f"Player Name: {player_name}, Prop: {prop}")
+
+    player_team, game_log_url = get_player_data(player_name)
+
+    print(f"Player Team: {player_team}, Game Log URL: {game_log_url}")
+
+    if not player_team:
+        await ctx.send(f"No data found for player: {player_name}")
+        return
+
+    game_ids = get_players_game_id(player_team)
+
+    print(f"Game IDs: {game_ids}")
+
+    if not game_ids:
+        await ctx.send(f"No game found for {player_team} today.")
+        return
+
+    odds_message = f"Odds for {player_name.title()} {prop.title()}:\n"
+    odds_found = False  # Flag to check if any odds are found
+
+    for game_id in game_ids:
+        prop_odds = get_player_prop_odds(player_name, prop, game_id, api_key)
+
+        if prop_odds:
+            odds_found = True
+            for odds in prop_odds:
+                sign = '+' if odds['price'] > 0 else ''
+                odds_message += f"Over {odds['point']
+                                        } - [{sign}{odds['price']}]\n"
+
+    if not odds_found:
+        odds_message += f"No odds found for player '{
+            player_name}' in market '{prop}'."
+
+    await ctx.send(odds_message)
+
+    # Fetch game log data for the specified prop
+    dates, game_log_data = get_player_game_log(game_log_url, prop)
+    if game_log_data:
+        plot_buf = plot_game_log_data(player_name, prop, dates, game_log_data)
+
+        file = discord.File(fp=plot_buf, filename="plot.png")
+        embed = discord.Embed(
+            title=f"{player_name} - {prop.title()} Over Last {len(game_log_data)} Games")
+        embed.set_image(url="attachment://plot.png")
+
+        await ctx.send(file=file, embed=embed)
+    else:
+        await ctx.send(f"No game log data found for '{player_name}'.")
+
     # Create a help command for the bot
 
 
-@bot.command(name='help')
+@ bot.command(name='help')
 async def mlb_help(ctx):
     embed = discord.Embed(
         title="MLB Bot Help",
