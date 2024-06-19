@@ -1251,6 +1251,7 @@ def get_player_prop_odds(player, prop, game_id, api_key):
                         player_odds.append({
                             'bookmaker': bookmaker['title'],
                             'market': market_data['key'],
+                            'name': outcome['name'],
                             'description': outcome['description'],
                             'price': outcome['price'],
                             'point': outcome['point']
@@ -1442,8 +1443,9 @@ async def prop_finder(ctx, *, player_name_prop):
             odds_found = True
             for odds in prop_odds:
                 sign = '+' if odds['price'] > 0 else ''
-                odds_message += f"Over {odds['point']
-                                        } - [{sign}{odds['price']}]\n"
+                # Include the name field in the message
+                odds_message += f"{odds['name']} {odds['point']
+                                                  } - [{sign}{odds['price']}]\n"
 
     if not odds_found:
         odds_message += f"No odds found for player '{
